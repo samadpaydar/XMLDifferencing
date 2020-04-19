@@ -1,0 +1,332 @@
+package DiffProject;
+
+import java.util.ArrayList;
+import java.util.Hashtable;
+import java.io.*;
+
+/**
+ * <p>Title: XML Diff Project</p>
+ * <p>Description: This class implements the lookup table.</p>
+ * <p>Copyright: Copyright (c) 2007</p>
+ * @author Samad Paydar
+ * @version 1.0
+ */
+public class LookupTable {
+    public LookupTable() {
+    }
+    public Hashtable namesHashTable;
+    public ArrayList rows;
+    public String name;
+    public int maxIndex = -1;
+    public boolean inserted[] = new boolean[Constants.MAX_NODE_COUNT];
+    public boolean deleted[] = new boolean[Constants.MAX_NODE_COUNT];
+    public int rowIndexOfTheInsertedRecord[] = new int[Constants.MAX_NODE_COUNT];
+    public int recordIndexOfTheInsertedRecord[] = new int[Constants.MAX_NODE_COUNT];
+    public int rowIndexOfTheDeletedRecord[] = new int[Constants.MAX_NODE_COUNT];
+    public int recordIndexOfTheDeletedRecord[] = new int[Constants.MAX_NODE_COUNT];
+
+    public boolean movedFrom[] = new boolean[Constants.MAX_NODE_COUNT];
+    public boolean movedTo[] = new boolean[Constants.MAX_NODE_COUNT];
+    public int insertedBeforeCount[] = new int[Constants.MAX_NODE_COUNT+1];
+    public int deletedBeforeCount[] = new int[Constants.MAX_NODE_COUNT+1];
+    public int movedFromBeforeCount[] = new int[Constants.MAX_NODE_COUNT+1];
+    public int movedToBeforeCount[] = new int[Constants.MAX_NODE_COUNT+1];
+    public ChunkTable insertChunkTable;
+    public ChunkTable deleteChunkTable;
+    public ChunkTable moveFromChunkTable;
+    public ChunkTable moveToChunkTable;
+    public int maxCanceledInsertNewIndex = -1;
+    public int maxCanceledDeleteOldIndex = -1;
+    public int maxCanceledMoveOldIndex = -1;
+    public int maxCanceledMoveNewIndex = -1;
+    public int minCanceledInsertNewIndex = Integer.MAX_VALUE;
+    public int minCanceledDeleteOldIndex = Integer.MAX_VALUE;
+    public int minCanceledMoveOldIndex = Integer.MAX_VALUE;
+    public int minCanceledMoveNewIndex = Integer.MAX_VALUE;
+
+    public int canceledInsertsCount = 0;//this value must be subtracted from insertedBeforeCount[i]
+    public int canceledDeletesCount = 0;//this value must be subtracted from deletedBeforeCount[i]
+    public int canceledMovedFromCount = 0;//this value must be subtracted from movedFromBeforeCount[i]
+    public int canceledMovedToCount = 0;//this value must be subtracted from movedFromToCount[i]
+
+    public LookupTable(int i) {
+        namesHashTable = new Hashtable();
+        rows = new ArrayList();
+        name = "level" + i;
+    }
+
+    public void insertNewRecord(String name, int newIndex) {
+        int index;
+        maxIndex = (newIndex > maxIndex) ? newIndex : maxIndex;
+        Object object = namesHashTable.get(name);
+        int matchedEmptyOldIndex = -1;
+        if(object == null) {
+            //No record with this name exists in the lookuptable
+            //so create a row and insert a record in it
+            index = namesHashTable.size();
+            namesHashTable.put(name, new Integer(index) );
+            LookupTableRow newRow = new LookupTableRow(name);
+            newRow.insertNewRecord(newIndex);
+            rows.add(index, newRow);
+            inserted[newIndex] = true;
+            rowIndexOfTheInsertedRecord[newIndex] = index;
+            recordIndexOfTheInsertedRecord[newIndex] = 0;
+        } else {
+            index = ((Integer)object).intValue();
+            LookupTableRow temp = (LookupTableRow)rows.get(index);
+            matchedEmptyOldIndex = temp.insertNewRecord(newIndex);
+            if(matchedEmptyOldIndex != -1) {
+                deleted[matchedEmptyOldIndex] = false;
+                movedFrom[matchedEmptyOldIndex] = true;
+                movedTo[newIndex] = true;
+            } else {
+                inserted[newIndex] = true;
+                rowIndexOfTheInsertedRecord[newIndex] = index;
+                recordIndexOfTheInsertedRecord[newIndex] = temp.records.size()-1;
+            }
+        }
+    }
+
+    public void insertOldRecord(String name, int oldIndex) {
+        int index;
+        maxIndex = (oldIndex > maxIndex) ? oldIndex : maxIndex;
+        Object object = namesHashTable.get(name);
+        int matchedEmptyNewIndex = -1;
+        if(object == null) {
+            //No record with this name exists in the lookuptable
+            //so create a row and insert a record in it
+            index = namesHashTable.size();
+            namesHashTable.put(name, new Integer(index) );
+            LookupTableRow newRow = new LookupTableRow(name);
+            newRow.insertOldRecord(oldIndex);
+            rows.add(index, newRow);
+            deleted[oldIndex] = true;
+            rowIndexOfTheDeletedRecord[oldIndex] = index;
+            recordIndexOfTheDeletedRecord[oldIndex] = 0;
+        } else {
+            index = ((Integer)object).intValue();
+            LookupTableRow temp = (LookupTableRow)rows.get(index);
+            matchedEmptyNewIndex = temp.insertOldRecord(oldIndex);
+            if(matchedEmptyNewIndex != -1) {
+                inserted[matchedEmptyNewIndex] = false;
+                movedTo[matchedEmptyNewIndex] = true;
+                movedFrom[oldIndex] = true;
+            } else {
+                deleted[oldIndex] = true;
+                rowIndexOfTheDeletedRecord[oldIndex] = index;
+                recordIndexOfTheDeletedRecord[oldIndex] = temp.records.size()-1;
+            }
+        }
+    }
+
+    public void print(BufferedWriter resultFile) throws Exception{
+        resultFile.write("<" + name + ">");
+        int inserts = 0, deletes=0, moves=0, updates=0;
+        int rowsCount = rows.size();
+        int recordsCount = 0;
+        for(int i=0; i<rowsCount; i++) {
+            LookupTableRow tempRow = (LookupTableRow)(rows.get(i));
+            String headName = tempRow.headName;
+            LookupTableRecord tempRecord;
+            recordsCount = tempRow.records.size();
+            for(int j=0; j<recordsCount; j++) {
+                tempRecord = tempRow.getRecord(j);
+                switch(tempRecord.status) {
+                case Constants.RECORD_IS_JUNK : continue;
+                case Constants.RECORD_IS_DELETED :
+                    resultFile.write("<delete value=\"" + + "\" index=\""+tempRecord.oldIndex+"\" />");
+                    deletes++;
+                    break;
+                case Constants.RECORD_IS_INSERTED :
+                    resultFile.write("<insert value=\""+ headName + "\" in=\"" + tempRecord.newIndex + "\" />");
+                    inserts++;
+                    break;
+                case Constants.RECORD_IS_MOVED :
+                    resultFile.write("<move from=\"" + tempRecord.oldIndex +
+                                       "\" to=\"" + tempRecord.newIndex + "\" />");
+                    moves++;
+                    break;
+                case Constants.RECORD_IS_UPDATED :
+                    resultFile.write("<update index=\"" + tempRecord.oldIndex +
+                                       "\" to=\"" + ((LookupTableRow)rows.get(tempRecord.param)).headName + "\" />");
+                    updates++;
+                    break;
+                default: System.out.println("failed");
+                    break;
+                }
+            }
+        }
+        resultFile.write("<summary insertCount=\""+inserts + "\" deleteCount=\"" + deletes +
+                "\" updateCount=\"" + updates + "\" moveCount=\"" + moves + "\" />");
+        resultFile.write("</" + name + ">");
+
+    }
+
+    public void executeStep2() {
+        int i;
+        int insertedCount=0, deletedCount=0, movedFromCount=0, movedToCount=0;
+        for(i=0; i<=maxIndex; i++) {
+            insertedBeforeCount[i] = insertedCount;
+            deletedBeforeCount[i] = deletedCount;
+            movedFromBeforeCount[i] = movedFromCount;
+            movedToBeforeCount[i] = movedToCount;
+            if (inserted[i])
+                insertedCount++;
+            if (deleted[i])
+                deletedCount++;
+            if (movedFrom[i])
+                movedFromCount++;
+            if (movedTo[i])
+                movedToCount++;
+        }
+        executeStep3();
+    }
+
+    public void executeStep3() {
+        int i, j, oldIndex, newIndex, x;
+        LookupTableRow tempRow;
+        LookupTableRecord tempRecord;
+        LookupTableRecord matchingRecord;
+        int rowsCount = rows.size();
+        int recordsCount = 0;
+        int part1=0, part2=0, part3=0, part4=0;
+        insertChunkTable = new ChunkTable(maxIndex+1);
+        deleteChunkTable = new ChunkTable(maxIndex+1);
+        moveFromChunkTable = new ChunkTable(maxIndex+1);
+        moveToChunkTable = new ChunkTable(maxIndex+1);
+
+        for(i=0; i<rowsCount; i++) {
+            tempRow = (LookupTableRow)(rows.get(i));
+            recordsCount= tempRow.records.size();
+            for(j=0; j<recordsCount; j++) {
+                tempRecord = tempRow.getRecord(j);
+                oldIndex = tempRecord.oldIndex;
+                newIndex = tempRecord.newIndex;
+                switch (tempRecord.status) {
+                case Constants.RECORD_IS_MOVED :
+                    part1 = getInsertedBeforeCount(newIndex);//new
+                    part2 = getDeletedBeforeCount(oldIndex);
+                    part3 = getMovedFromBeforeCount(oldIndex);
+                    part4 = getMovedToBeforeCount(newIndex);//new
+
+                    if(oldIndex - newIndex == part2 - part1 + part3 - part4) {
+                        tempRecord.status = Constants.RECORD_IS_JUNK;
+
+                        //>>cancelMove(oldIndex, newIndex)
+                        maxCanceledMoveOldIndex = (oldIndex>maxCanceledMoveOldIndex) ? oldIndex : maxCanceledMoveOldIndex;
+                        minCanceledMoveOldIndex = (oldIndex<minCanceledMoveOldIndex) ? oldIndex : minCanceledMoveOldIndex;
+                        moveFromChunkTable.splitFromIndex(oldIndex);
+                        //movedFrom[oldIndex] = false; it is not necessary
+                        canceledMovedFromCount++;
+
+                        maxCanceledMoveNewIndex = (newIndex>maxCanceledMoveNewIndex) ? newIndex : maxCanceledMoveNewIndex;
+                        minCanceledMoveNewIndex = (newIndex<minCanceledMoveNewIndex) ? newIndex : minCanceledMoveNewIndex;
+                        //movedTo[newIndex] = false; it is not necessary
+                        moveToChunkTable.splitFromIndex(newIndex);
+                        canceledMovedToCount++;
+                        //<<cancelMove(oldIndex, newIndex)
+                    }
+                    break;
+                case Constants.RECORD_IS_INSERTED:
+                    //check for update
+                    part1 = getInsertedBeforeCount(newIndex);
+                    part2 = getDeletedBeforeCount(newIndex);
+                    part3 = getMovedFromBeforeCount(newIndex);
+                    part4 = getMovedToBeforeCount(newIndex);
+
+                    x = newIndex - part1 + part2 - part4 + part3;
+                    if(x>=0 && x<=maxIndex && deleted[x]) {
+                        if(rowIndexOfTheDeletedRecord[x]>i) {//that is not seen yet
+                            tempRecord.status = Constants.RECORD_IS_JUNK;
+                            matchingRecord = (LookupTableRecord)
+                                    (((LookupTableRow)(rows.get(rowIndexOfTheDeletedRecord[x]))).records.get(recordIndexOfTheDeletedRecord[x]));
+                            matchingRecord.status = Constants.RECORD_IS_UPDATED;
+                            matchingRecord.param = i;
+
+                            //>>cancelDelete();
+                            maxCanceledDeleteOldIndex = (matchingRecord.oldIndex > maxCanceledDeleteOldIndex) ? matchingRecord.oldIndex : maxCanceledDeleteOldIndex;
+                            minCanceledDeleteOldIndex = (matchingRecord.oldIndex < minCanceledDeleteOldIndex) ? matchingRecord.oldIndex : minCanceledDeleteOldIndex;
+                            deleteChunkTable.splitFromIndex(matchingRecord.oldIndex);
+                            deleted[matchingRecord.oldIndex] = false;
+                            canceledDeletesCount++;
+                            //<<cancelDelete()
+                            //>>cancelInsert();
+                            maxCanceledInsertNewIndex = (newIndex>maxCanceledInsertNewIndex) ? newIndex : maxCanceledInsertNewIndex;
+                            minCanceledInsertNewIndex = (newIndex<minCanceledInsertNewIndex) ? newIndex : minCanceledInsertNewIndex;
+                            insertChunkTable.splitFromIndex(newIndex);
+                            inserted[newIndex] = false;
+                            canceledInsertsCount++;
+                            //<<cancelInsert()
+                        }
+                    }
+                    break;
+                case Constants.RECORD_IS_DELETED:
+                    //check for update
+                    part1 = getInsertedBeforeCount(oldIndex);
+                    part2 = getDeletedBeforeCount(oldIndex);
+                    part3 = getMovedFromBeforeCount(oldIndex);
+                    part4 = getMovedToBeforeCount(oldIndex);
+
+                    x = oldIndex - part2 + part1 - part3 + part4;
+                    if(x>=0 && x<=maxIndex && inserted[x]) {
+                        if(rowIndexOfTheInsertedRecord[x]>i) {//that is not seen yet
+                            tempRecord.status = Constants.RECORD_IS_UPDATED;
+                            tempRecord.param = rowIndexOfTheInsertedRecord[x];
+                            matchingRecord = (LookupTableRecord)
+                                    (((LookupTableRow)(rows.get(rowIndexOfTheInsertedRecord[x]))).records.get(recordIndexOfTheInsertedRecord[x]));
+                            matchingRecord.status = Constants.RECORD_IS_JUNK;
+
+                            //>>cancelDelete();
+                            maxCanceledDeleteOldIndex = (oldIndex > maxCanceledDeleteOldIndex) ? oldIndex : maxCanceledDeleteOldIndex;
+                            minCanceledDeleteOldIndex = (oldIndex < minCanceledDeleteOldIndex) ? oldIndex : minCanceledDeleteOldIndex;
+                            deleteChunkTable.splitFromIndex(oldIndex);
+                            deleted[oldIndex] = false;
+                            canceledDeletesCount++;
+                            //<<cancelDelete()
+                            //>>cancelInsert();
+                            maxCanceledInsertNewIndex = (matchingRecord.newIndex>maxCanceledInsertNewIndex) ? matchingRecord.newIndex : maxCanceledInsertNewIndex;
+                            minCanceledInsertNewIndex = (matchingRecord.newIndex<minCanceledInsertNewIndex) ? matchingRecord.newIndex : minCanceledInsertNewIndex;
+                            insertChunkTable.splitFromIndex(matchingRecord.newIndex);
+                            inserted[matchingRecord.newIndex] = false;
+                            canceledInsertsCount++;
+                            //<<cancelInsert()
+                        }
+                    }
+                    break;
+
+                }
+            }
+        }
+    }
+
+    public int getInsertedBeforeCount(int index) {
+        if(index<=minCanceledInsertNewIndex) return insertedBeforeCount[index];
+        else if(index<maxCanceledInsertNewIndex) return insertedBeforeCount[index] - insertChunkTable.findContainerChunk(index);
+        else if(index==maxCanceledInsertNewIndex) return insertedBeforeCount[index] - canceledInsertsCount + 1;
+        else return insertedBeforeCount[index] - canceledInsertsCount;
+    }
+
+    public int getDeletedBeforeCount(int index) {
+        if(index<=minCanceledDeleteOldIndex) return deletedBeforeCount[index];
+        else if(index<maxCanceledDeleteOldIndex) return deletedBeforeCount[index] - deleteChunkTable.findContainerChunk(index);
+        else if(index==maxCanceledDeleteOldIndex) return deletedBeforeCount[index] - canceledDeletesCount + 1;
+        else return deletedBeforeCount[index] - canceledDeletesCount;
+    }
+
+    public int getMovedFromBeforeCount(int index) {
+        if(index<=minCanceledMoveOldIndex) return movedFromBeforeCount[index];
+        else if(index<maxCanceledMoveOldIndex) return movedFromBeforeCount[index] - moveFromChunkTable.findContainerChunk(index);
+        else if(index==maxCanceledMoveOldIndex) return movedFromBeforeCount[index] - canceledMovedFromCount + 1;
+        else return movedFromBeforeCount[index] - canceledMovedFromCount;
+    }
+
+    public int getMovedToBeforeCount(int index) {
+        if(index<=minCanceledMoveNewIndex) return movedToBeforeCount[index];
+        else if(index<maxCanceledMoveNewIndex) return movedToBeforeCount[index] - moveToChunkTable.findContainerChunk(index);
+        else if(index==maxCanceledMoveNewIndex) return movedToBeforeCount[index] - canceledMovedToCount + 1;
+        else return movedToBeforeCount[index] - canceledMovedToCount;
+    }
+}
+
+
+

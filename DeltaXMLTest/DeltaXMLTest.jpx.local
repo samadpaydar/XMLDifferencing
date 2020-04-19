@@ -1,0 +1,21 @@
+build.menu.1[0]=com.borland.jbuilder.build.ProjectBuilder$ProjectBuildAction;make
+build.menu.2[0]=com.borland.jbuilder.build.ProjectBuilder$ProjectBuildAction;rebuild
+classFilter.unittest.1[0]=junit.framework.*
+classFilter.unittest.2[0]=java.lang.reflect.Method
+classFilter.unittest.3[0]=com.borland.jbuilder.unittest.JBTestRunner
+classFilter.unittest.4[0]=sun.reflect.NativeMethodAccessorImpl
+classFilter.unittest.5[0]=sun.reflect.DelegatingMethodAccessorImpl
+content.layout.xml.[0]=<project-layout><tab_container selected_index="-1"/></project-layout>
+debug.NoTracingClasses.1[0]=16 java.lang.Object1  1 -1
+debug.NoTracingClasses.2[0]=21 java.lang.ClassLoader1  1 -1
+debug.NoTracingClasses.3[0]=16 java.lang.String1  1 -1
+debug.SplitThreadsAndDataView[0]=0
+import.optimize.legacyPropertiesRead[0]=1
+packagebrowser.lastClassName[0]=deltaxmltest.Test
+sys.Author[0]=
+sys.DefaultPackage[0]=deltaxmltest
+sys.ReopenHistory.1[0]=D%|/Farshad/Projects/Courses/Thesis/Compare with DeltaXML/DeltaXMLCore-4_3_3/source/src/command-processor/src/com/deltaxml/cmdline/PipelinedTextUI.java
+sys.ReopenHistory.2[0]=D%|/Farshad/Projects/Courses/Thesis/Compare with DeltaXML/DeltaXMLCore-4_3_3/samples/SimpleFiles/SimpleFiles.java
+sys.ReopenHistory.3[0]=D%|/Farshad/Projects/Courses/Thesis/Compare with DeltaXML/DeltaXMLCore-4_3_3/deltaxml.jar
+team.lastScanned[0]=1190335534718
+wizard.package.package_history.1[0]=deltaxmltest

@@ -1,0 +1,280 @@
+package DiffProject;
+
+import javax.xml.parsers.*;
+import org.w3c.dom.*;
+import java.io.*;
+import java.util.Date;
+import java.text.DateFormat;
+
+/**
+ * <p>Title: XML Diff Project</p>
+ * <p>Description: This class implements the Diff algorithm's body.</p>
+ * <p>Copyright: Copyright (c) 2007</p>
+ * @author Samad Paydar
+ * @version 1.0
+ */
+
+public class Diff {
+
+    public Document oldDocument = null;
+    public Document newDocument = null;
+    public boolean printVerbose = true;
+    public LookupTable[] lookupTables = new LookupTable[Constants.MAX_LEVEL_COUNT];
+    public int nextIndexes1[] = new int[Constants.MAX_LEVEL_COUNT];//for old document
+    public int nextIndexes2[] = new int[Constants.MAX_LEVEL_COUNT];//for new document
+
+    public String resultFile;
+
+    public Diff(String oldDocumentName, String newDocumentName, String printVerboseFlag, String file) {
+        try {
+            DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+            //dbf.setValidating(false);
+           // dbf.setIgnoringElementContentWhitespace(true);
+
+            DocumentBuilder db = dbf.newDocumentBuilder();
+            oldDocument = db.parse(oldDocumentName);
+            newDocument = db.parse(newDocumentName);
+            printVerbose = Boolean.valueOf(printVerboseFlag).booleanValue();
+            resultFile = file;
+            //for(int i=0;i<Constants.MAX_LEVEL_COUNT; i++)
+             //   lookupTables[i] = new LookupTable(i);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void generateDiff() throws Exception{
+        Token oldToken = new Token((Node)(oldDocument.getDocumentElement()), 0, 0);
+        Token newToken = new Token((Node)(newDocument.getDocumentElement()), 0, 0);
+        while (oldToken!=null && newToken!=null) {
+            while(oldToken.level > newToken.level) {
+              insertOldTokenInLookupTable(oldToken);
+              oldToken = getNextOldToken(oldToken);
+              if(oldToken == null) break;
+            }
+            if(newToken == null || oldToken == null) break;
+            while(oldToken.level < newToken.level) {
+              insertNewTokenInLookupTable(newToken);
+              newToken = getNextNewToken(newToken);
+              if(newToken == null) break;
+            }
+            if(newToken == null || oldToken == null) break;
+            while(oldToken.level == newToken.level) {
+              compareTokens(oldToken, newToken);
+              oldToken = getNextOldToken(oldToken);
+              newToken = getNextNewToken(newToken);
+              if(newToken == null || oldToken == null) break;
+            }
+        }
+        if (newToken == null && oldToken != null) {
+          while(oldToken != null) {
+            insertOldTokenInLookupTable(oldToken);
+            oldToken = getNextOldToken(oldToken);
+          }
+        } else if (newToken != null && oldToken == null) {
+          while(newToken != null) {
+            insertNewTokenInLookupTable(newToken);
+            newToken = getNextNewToken(newToken);
+          }
+        }
+
+        //step 2
+        for(int i=0; i<Constants.MAX_LEVEL_COUNT; i++) {
+            if(lookupTables[i]==null || lookupTables[i].rowsCount==0) continue;
+            lookupTables[i].executeStep2();
+        }
+        if(printVerbose) {
+         BufferedWriter f = new BufferedWriter(new FileWriter(resultFile));
+         f.write("<delta>");
+         for(int i=0; i<Constants.MAX_LEVEL_COUNT; i++) {
+            if(lookupTables[i]==null || lookupTables[i].rowsCount()==0) continue;
+           lookupTables[i].print(f);
+         }
+         f.write("</delta>");
+         f.close();
+       }
+    }
+
+    public Token getNextNewToken(Token token) {
+        Token resultToken = new Token(null, -1, -1);
+        if(token.node.getFirstChild() != null) {
+            resultToken.node = token.node.getFirstChild();
+            resultToken.level = token.level + 1;
+            resultToken.index = nextIndexes2[resultToken.level] ;
+            nextIndexes2[resultToken.level]++;
+            return resultToken;
+        }
+
+        if(token.node.getNextSibling() != null) {
+            resultToken.node = token.node.getNextSibling();
+            resultToken.level = token.level;
+            resultToken.index = nextIndexes2[resultToken.level];
+            nextIndexes2[resultToken.level]++;
+            return resultToken;
+        }
+
+        Node tempNode = token.node.getParentNode();
+        int level = token.level-1;
+        while(tempNode != null) {
+            if(tempNode.getNextSibling() != null) {
+                resultToken.node = tempNode.getNextSibling();
+                resultToken.level = level;
+                resultToken.index = nextIndexes2[level];
+                nextIndexes2[level]++;
+                return resultToken;
+            } else {
+                tempNode = tempNode.getParentNode();
+                level--;
+            }
+        }
+        return null;
+    }
+
+    public Token getNextOldToken(Token token) {
+        Token resultToken = new Token(null, -1, -1);
+        if(token.node.getFirstChild() != null) {
+            resultToken.node = token.node.getFirstChild();
+            resultToken.level = token.level + 1;
+            resultToken.index = nextIndexes1[resultToken.level] ;
+            nextIndexes1[resultToken.level]++;
+            return resultToken;
+        }
+
+        if(token.node.getNextSibling() != null) {
+            resultToken.node = token.node.getNextSibling();
+            resultToken.level = token.level;
+            resultToken.index = nextIndexes1[resultToken.level];
+            nextIndexes1[resultToken.level]++;
+            return resultToken;
+        }
+
+        Node tempNode = token.node.getParentNode();
+        int level = token.level-1;
+        while(tempNode != null) {
+            if(tempNode.getNextSibling() != null) {
+                resultToken.node = tempNode.getNextSibling();
+                resultToken.level = level;
+                resultToken.index = nextIndexes1[level];
+                nextIndexes1[level]++;
+                return resultToken;
+            } else {
+                tempNode = tempNode.getParentNode();
+                level--;
+            }
+        }
+        return null;
+    }
+
+
+    public void insertNewTokenInLookupTable(Token token) {
+      String text = "";
+      if(token.node == null) return;
+      switch (token.node.getNodeType()) {
+      case Node.TEXT_NODE:
+          text = token.node.getNodeValue();
+          break;
+      case Node.ELEMENT_NODE:
+          text = token.node.getNodeName();
+          break;
+      }
+      if(lookupTables[token.level]!=null) {
+          lookupTables[token.level].insertNewRecord(text, token.index);
+      } else {
+          lookupTables[token.level] = new LookupTable(token.level);
+          lookupTables[token.level].insertNewRecord(text, token.index);
+      }
+    }
+
+    public void insertOldTokenInLookupTable(Token token) {
+      String text = "";
+      if(token.node == null) return;
+      switch (token.node.getNodeType()) {
+      case Node.TEXT_NODE:
+          text = token.node.getNodeValue();
+          break;
+      case Node.ELEMENT_NODE:
+          text = token.node.getNodeName();
+          break;
+      }
+      if(lookupTables[token.level]!=null) {
+          lookupTables[token.level].insertOldRecord(text, token.index);
+      } else {
+          lookupTables[token.level] = new LookupTable(token.level);
+          lookupTables[token.level].insertOldRecord(text, token.index);
+      }
+    }
+
+    public void compareTokens(Token oldToken, Token newToken) {
+      Object object = null;
+      int index = -1;
+      String text1;
+      if (oldToken == null && newToken == null) return;
+      else if (oldToken != null && newToken != null) {
+          text1 = "";
+          if(oldToken.node.getNodeType() == Node.ELEMENT_NODE)
+              text1 = oldToken.node.getNodeName();
+          else if(oldToken.node.getNodeType() == Node.TEXT_NODE)
+              text1 = oldToken.node.getNodeValue();
+          String text2 = "";
+          if(newToken.node.getNodeType() == Node.ELEMENT_NODE)
+              text2 = newToken.node.getNodeName();
+          else if(newToken.node.getNodeType() == Node.TEXT_NODE)
+              text2 = newToken.node.getNodeValue();
+          if(text1.compareTo(text2) != 0) {
+              insertOldTokenInLookupTable(oldToken);
+              insertNewTokenInLookupTable(newToken);
+          }
+      } else if (oldToken == null && newToken != null) {
+          insertNewTokenInLookupTable(newToken);
+      } else if (oldToken != null && newToken == null) {
+          insertOldTokenInLookupTable(oldToken);
+      }
+    }
+
+    public static void main(String[] args) {
+        try{
+          final int from = Integer.parseInt(args[0]);
+          final int to = Integer.parseInt(args[1]);
+          final int step = Integer.parseInt(args[2]);
+          final int numberOfTests = Integer.parseInt(args[3]);
+          long results[] = new long[numberOfTests];
+          long start, end, spentTime;
+          PrintStream totalLog = new PrintStream(new FileOutputStream("testcases\\totalLog.txt"));
+          totalLog.println("Start: " + DateFormat.getDateTimeInstance().format (new Date()));
+          for(int testcase=from; testcase<=to; testcase+=step) {
+              System.out.print("testcase # " + testcase);
+              String source = "testcases\\" + testcase + "\\File1.xml";
+              String dest = "testcases\\" + testcase + "\\File2.xml";
+              String resultFile = "testcases\\" + testcase + "\\result.xml";
+              String resultFile2 = "testcases\\" + testcase + "\\result2.xml";
+              PrintStream log = new PrintStream(new FileOutputStream("testcases\\" + testcase+ "\\log.txt"));
+              for(int i=0; i < numberOfTests; i++) {
+                  System.gc();
+                  start = System.currentTimeMillis();
+                  Diff theDiff = new Diff(source, dest, "true", resultFile);
+                  theDiff.generateDiff();
+                  end = System.currentTimeMillis();
+                  spentTime = end - start;
+                  results[i] = spentTime;
+                  log.println(spentTime);
+                  theDiff = null;
+                  System.gc();
+              }
+              long sum = 0;
+              for(int i =1; i< numberOfTests; i++) {
+                  sum += results[i];
+              }
+              float avg = 0;
+              if(numberOfTests>1)  avg = (float)sum / (float)(numberOfTests-1);
+              System.out.println("avg: "+avg);
+              log.println("avg: "+avg);
+              log.close();
+              totalLog.println(testcase +" , "+avg);
+          }
+          totalLog.println("Finish: " + DateFormat.getDateTimeInstance().format (new Date()));
+          totalLog.close();
+        } catch(Exception e) {
+          e.printStackTrace();
+        }
+    }
+}

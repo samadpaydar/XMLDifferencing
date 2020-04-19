@@ -1,0 +1,22 @@
+package DiffProject;
+
+/**
+ * <p>Title: XML Diff Project</p>
+ * <p>Description: This class contains some constants that are shared between other classes.</p>
+ * <p>Copyright: Copyright (c) 2007</p>
+ * @author Samad Paydar
+ * @version 1.0
+ */
+
+public class Constants {
+    public static final int MAX_NODE_COUNT = 100000;
+
+    public static final int MAX_LEVEL_COUNT = 10;
+
+    public static final int RECORD_IS_UNCOMMITED = 0;
+    public static final int RECORD_IS_JUNK = 1;
+    public static final int RECORD_IS_INSERTED = 2;
+    public static final int RECORD_IS_DELETED = 3;
+    public static final int RECORD_IS_MOVED = 4;
+    public static final int RECORD_IS_UPDATED = 5;
+}

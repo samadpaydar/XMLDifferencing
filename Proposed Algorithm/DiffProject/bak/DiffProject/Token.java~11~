@@ -1,0 +1,46 @@
+package DiffProject;
+
+import org.w3c.dom.Node;
+
+/**
+ * <p>Title: XML Diff Project</p>
+ *
+ * <p>Description: </p>
+ *
+ * <p>Copyright: Copyright (c) 2007</p>
+ *
+ * <p>Company: </p>
+ *
+ * @author Samad Paydar
+ * @version 1.0
+ */
+public class Token {
+    public Node node;
+    public int index;
+    public int level;
+
+    public Token(Node theNode, int theIndex, int theLevel) {
+        node = theNode;
+        index = theIndex;
+        level = theLevel;
+    }
+
+    public Node getNode() {
+        return node;
+    }
+
+    public void println() {
+        if(this.getNode() == null) return;
+        String result = "";
+        result += "nodeIndex: "+ this.getIndex() + " nodeLevel: "+ this.getLevel();
+        switch (this.getNode().getNodeType()) {
+          case Node.ELEMENT_NODE:
+            result += " nodeName: " + this.getNode().getNodeName();
+            break;
+          case Node.TEXT_NODE:
+            result += " nodeValue: " + this.getNode().getNodeValue();
+            break;
+        }
+        System.out.println(result);
+    }
+}

@@ -1,0 +1,14 @@
+[PropertyInfo]
+deleted,boolean[],false,false, , ,false,<default>
+deletedBefore,int[],false,false, , ,false,<default>
+inserted,boolean[],false,false, , ,false,<default>
+insertedBefore,int[],false,false, , ,false,<default>
+maxIndex,int,false,false, , ,false,<default>
+name,String,false,false, , ,false,<default>
+namesHashTable,java.util.Hashtable,false,false, , ,false,<default>
+rows,java.util.Vector,false,false, , ,false,<default>
+[IconNames]
+
+
+
+
